@@ -14,7 +14,113 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bookings: {
+        Row: {
+          booking_time: string
+          created_at: string
+          duration_hours: number
+          id: string
+          parking_lot_id: string
+          parking_lot_name: string
+          slot_id: string
+          status: string
+          total_price: number
+          user_id: string
+          vehicle_id: string | null
+          vehicle_number: string
+        }
+        Insert: {
+          booking_time?: string
+          created_at?: string
+          duration_hours: number
+          id?: string
+          parking_lot_id: string
+          parking_lot_name: string
+          slot_id: string
+          status?: string
+          total_price: number
+          user_id: string
+          vehicle_id?: string | null
+          vehicle_number: string
+        }
+        Update: {
+          booking_time?: string
+          created_at?: string
+          duration_hours?: number
+          id?: string
+          parking_lot_id?: string
+          parking_lot_name?: string
+          slot_id?: string
+          status?: string
+          total_price?: number
+          user_id?: string
+          vehicle_id?: string | null
+          vehicle_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          phone_number: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          phone_number?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          phone_number?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vehicles: {
+        Row: {
+          created_at: string
+          id: string
+          is_default: boolean | null
+          user_id: string
+          vehicle_number: string
+          vehicle_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          user_id: string
+          vehicle_number: string
+          vehicle_type?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          user_id?: string
+          vehicle_number?: string
+          vehicle_type?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
