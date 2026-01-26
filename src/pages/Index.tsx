@@ -1,54 +1,178 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Mail, Phone, MapPin, Search, Navigation, Zap, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import Header from '@/components/Header';
 import HeroSection from '@/components/HeroSection';
 import ParkingMap from '@/components/ParkingMap';
 import ParkingLotCard from '@/components/ParkingLotCard';
 import BookingModal from '@/components/BookingModal';
 import DrivingMode from '@/components/DrivingMode';
-import { mockParkingLots } from '@/data/mockParkingData';
 import { ParkingLot } from '@/types/parking';
+import { mockParkingLots } from '@/data/mockParkingData';
+import { toast } from 'sonner';
 
 const Index = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLot, setSelectedLot] = useState<ParkingLot | null>(null);
   const [bookingLot, setBookingLot] = useState<ParkingLot | null>(null);
+  const [isBooking, setIsBooking] = useState(false);
   const [userLocation] = useState({ lat: 40.7128, lng: -74.006 });
+  const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
+  const [isSubmittingContact, setIsSubmittingContact] = useState(false);
+
+  const { data: parkingLots = [], isLoading, error } = useQuery({
+    queryKey: ['parking_lots'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('parking_lots')
+        .select('*');
+
+      if (error) {
+        // Handle case where table doesn't exist (e.g., migration not run)
+        if (
+          error.code === 'PGRST116' ||
+          error.code === 'PGRST205' ||
+          error.code === '42P01' ||
+          error.message.includes('not found') ||
+          error.message.includes('relation')
+        ) {
+          console.warn('Parking lots table not found or Supabase not ready, falling back to mock data');
+          toast.warning('Database tables not set up yet. Run full_setup.sql in Supabase SQL Editor.');
+          return mockParkingLots;
+        }
+
+        console.error('Supabase fetch error:', error);
+        toast.error(`Fetch failed: ${error.message} (Code: ${error.code}). Using mock data.`);
+        return mockParkingLots; // Final fallback for any other error to keep app working
+      }
+
+      return data.map((lot): ParkingLot => ({
+        id: lot.id,
+        name: lot.name,
+        address: lot.address,
+        lat: lot.lat,
+        lng: lot.lng,
+        totalSlots: lot.total_slots,
+        availableSlots: lot.available_slots,
+        pricePerHour: lot.price_per_hour,
+        distance: lot.distance_info || 0,
+        rating: lot.rating || 0,
+        hasCamera: lot.has_camera || false,
+      }));
+    }
+  });
 
   const handleSearch = (query: string) => {
     console.log('Searching for:', query);
-    // Filter logic would go here
+    setSearchQuery(query);
   };
 
-  const handleBookingConfirm = (booking: {
+  const filteredLots = useMemo(() =>
+    parkingLots.filter(lot =>
+      lot.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      lot.address.toLowerCase().includes(searchQuery.toLowerCase())
+    ),
+    [parkingLots, searchQuery]
+  );
+
+  const { data: userBookings = [], isLoading: isLoadingBookings } = useQuery({
+    queryKey: ['user_bookings'],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return [];
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching bookings:', error);
+        return [];
+      }
+      return data;
+    }
+  });
+
+  const handleContactSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingContact(true);
+    setTimeout(() => {
+      setIsSubmittingContact(false);
+      toast.success("Message sent! We'll get back to you soon.");
+      setContactForm({ name: '', email: '', message: '' });
+    }, 1000);
+  };
+
+  const handleBookingConfirm = async (booking: {
     slotId: string;
     vehicleNumber: string;
     duration: number;
     whatsappNumber: string;
   }) => {
-    console.log('Booking confirmed:', booking);
-    // Here you would integrate with WhatsApp API
-    // https://wa.me/{number}?text={message}
-    const message = encodeURIComponent(
-      `🅿️ ParkSmart Booking Confirmed!\n\n` +
-      `📍 ${bookingLot?.name}\n` +
-      `🚗 Vehicle: ${booking.vehicleNumber}\n` +
-      `⏰ Duration: ${booking.duration} hours\n` +
-      `💰 Total: $${(bookingLot?.pricePerHour || 0) * booking.duration}\n\n` +
-      `See you soon!`
-    );
-    
-    // Open WhatsApp with pre-filled message
-    window.open(`https://wa.me/${booking.whatsappNumber.replace(/\D/g, '')}?text=${message}`, '_blank');
-    
-    setBookingLot(null);
+    setIsBooking(true);
+    try {
+      // Get current user session
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const { error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
+          user_id: session?.user?.id || '00000000-0000-0000-0000-000000000000', // Dummy if no session
+          parking_lot_id: bookingLot?.id || '',
+          parking_lot_name: bookingLot?.name || '',
+          slot_id: booking.slotId,
+          vehicle_number: booking.vehicleNumber,
+          duration_hours: booking.duration,
+          total_price: (bookingLot?.pricePerHour || 0) * booking.duration,
+          status: 'active'
+        });
+
+      if (bookingError) throw bookingError;
+
+      // Update available slots in the lot (mocking the transaction)
+      if (bookingLot) {
+        await supabase
+          .from('parking_lots')
+          .update({ available_slots: Math.max(0, bookingLot.availableSlots - 1) })
+          .eq('id', bookingLot.id);
+      }
+
+      console.log('Booking confirmed:', booking);
+
+      const message = encodeURIComponent(
+        `🅿️ ParkSmart Booking Confirmed!\n\n` +
+        `📍 ${bookingLot?.name}\n` +
+        `🚗 Vehicle: ${booking.vehicleNumber}\n` +
+        `⏰ Duration: ${booking.duration} hours\n` +
+        `💰 Total: $${(bookingLot?.pricePerHour || 0) * booking.duration}\n\n` +
+        `See you soon!`
+      );
+
+      // Open WhatsApp with pre-filled message
+      window.open(`https://wa.me/${booking.whatsappNumber.replace(/\D/g, '')}?text=${message}`, '_blank');
+
+      setBookingLot(null);
+      toast.success("Booking confirmed! WhatsApp alert sent.");
+    } catch (err: any) {
+      console.error('Error booking:', err);
+      toast.error(err.message || 'Failed to complete booking');
+    } finally {
+      setIsBooking(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <main>
-        <HeroSection 
+        <HeroSection
           onSearch={handleSearch}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -70,7 +194,7 @@ const Index = () => {
               {/* Map */}
               <div className="lg:col-span-2">
                 <ParkingMap
-                  parkingLots={mockParkingLots}
+                  parkingLots={filteredLots}
                   selectedLot={selectedLot}
                   onSelectLot={setSelectedLot}
                   userLocation={userLocation}
@@ -80,78 +204,174 @@ const Index = () => {
               {/* Parking List */}
               <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                 <h3 className="font-display text-lg font-semibold text-foreground sticky top-0 bg-background py-2">
-                  {mockParkingLots.length} Parking Locations
+                  {isLoading ? 'Searching...' : `${filteredLots.length} Parking Locations`}
                 </h3>
-                {mockParkingLots.map(lot => (
-                  <ParkingLotCard
-                    key={lot.id}
-                    lot={lot}
-                    isSelected={selectedLot?.id === lot.id}
-                    onSelect={() => setSelectedLot(lot)}
-                    onBook={() => setBookingLot(lot)}
-                  />
-                ))}
+
+                {isLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-32 rounded-xl bg-muted animate-pulse" />
+                  ))
+                ) : filteredLots.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No parking lots found matching your search.</p>
+                  </div>
+                ) : (
+                  filteredLots.map(lot => (
+                    <ParkingLotCard
+                      key={lot.id}
+                      lot={lot}
+                      isSelected={selectedLot?.id === lot.id}
+                      onSelect={() => setSelectedLot(lot)}
+                      onBook={() => setBookingLot(lot)}
+                    />
+                  ))
+                )}
               </div>
             </div>
           </div>
         </section>
 
         {/* Driving Mode Section */}
-        <DrivingMode 
-          parkingLots={mockParkingLots}
+        <DrivingMode
+          parkingLots={parkingLots}
           onSelectLot={(lot) => {
             setSelectedLot(lot);
             setBookingLot(lot);
           }}
         />
 
-        {/* Features Section */}
-        <section className="py-16 bg-secondary/30">
+        {/* My Bookings Section */}
+        <section id="bookings" className="py-16">
           <div className="container mx-auto px-4">
             <div className="text-center mb-12">
               <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4">
-                Smart Features
+                My Bookings
               </h2>
               <p className="text-muted-foreground">
-                Everything you need for hassle-free parking
+                Manage your active and past parking reservations
               </p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-8">
-              <div className="p-6 rounded-2xl bg-card border border-border">
-                <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center mb-4">
-                  <span className="text-2xl">📍</span>
+            <div className="max-w-4xl mx-auto">
+              {isLoadingBookings ? (
+                <div className="space-y-4">
+                  {[1, 2].map(i => (
+                    <div key={i} className="h-24 rounded-xl bg-muted animate-pulse" />
+                  ))}
                 </div>
-                <h3 className="font-display text-xl font-semibold text-foreground mb-2">
-                  Real-time Tracking
-                </h3>
-                <p className="text-muted-foreground">
-                  Track nearby parking lots while driving with live availability updates and voice alerts.
+              ) : userBookings.length === 0 ? (
+                <div className="text-center py-12 glass-card rounded-2xl border border-dashed border-border">
+                  <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-foreground">No bookings found</h3>
+                  <p className="text-muted-foreground mb-6">You haven't made any parking reservations yet.</p>
+                  <Button variant="hero" onClick={() => document.getElementById('map')?.scrollIntoView({ behavior: 'smooth' })}>
+                    Find Parking Now
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {userBookings.map((booking: any) => (
+                    <div key={booking.id} className="p-6 rounded-xl bg-card border border-border flex flex-col md:flex-row justify-between items-center gap-4 hover:border-primary/50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                          <Zap className="w-6 h-6 text-primary" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-foreground">{booking.parking_lot_name}</h4>
+                          <p className="text-sm text-muted-foreground">Slot: {booking.slot_id} • {new Date(booking.created_at).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-display font-bold text-lg text-primary">${booking.total_price}</p>
+                        <span className={`text-xs px-2 py-1 rounded-full ${booking.status === 'active' ? 'bg-available/20 text-available' : 'bg-secondary text-muted-foreground'}`}>
+                          {booking.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Contact Section */}
+        <section id="contact" className="py-16 bg-background">
+          <div className="container mx-auto px-4">
+            <div className="grid md:grid-cols-2 gap-12 items-center max-w-5xl mx-auto">
+              <div>
+                <h2 className="font-display text-3xl md:text-5xl font-bold text-foreground mb-6">
+                  Get in <span className="gradient-text">Touch</span>
+                </h2>
+                <p className="text-lg text-muted-foreground mb-8">
+                  Have questions about our parking network or need technical support?
+                  Our team is here to help you 24/7.
                 </p>
+
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                      <Phone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Call Us</p>
+                      <p className="font-medium text-foreground">+91 79042 95652</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                      <Mail className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Email Support</p>
+                      <p className="font-medium text-foreground">ananthananth1808@gmail.com</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="p-6 rounded-2xl bg-card border border-border">
-                <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center mb-4">
-                  <span className="text-2xl">📹</span>
-                </div>
-                <h3 className="font-display text-xl font-semibold text-foreground mb-2">
-                  Live Camera View
-                </h3>
-                <p className="text-muted-foreground">
-                  See exactly where your spot is with live camera feeds before you arrive.
-                </p>
-              </div>
-
-              <div className="p-6 rounded-2xl bg-card border border-border">
-                <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center mb-4">
-                  <span className="text-2xl">💬</span>
-                </div>
-                <h3 className="font-display text-xl font-semibold text-foreground mb-2">
-                  WhatsApp Alerts
-                </h3>
-                <p className="text-muted-foreground">
-                  Get instant booking confirmations and reminders directly on WhatsApp.
-                </p>
+              <div className="glass-card p-8 rounded-2xl border border-border">
+                <form onSubmit={handleContactSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">Name</label>
+                    <Input
+                      required
+                      value={contactForm.name}
+                      onChange={e => setContactForm({ ...contactForm, name: e.target.value })}
+                      placeholder="Your Name"
+                      className="bg-secondary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">Email</label>
+                    <Input
+                      required
+                      type="email"
+                      value={contactForm.email}
+                      onChange={e => setContactForm({ ...contactForm, email: e.target.value })}
+                      placeholder="email@example.com"
+                      className="bg-secondary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">Message</label>
+                    <Textarea
+                      required
+                      rows={4}
+                      value={contactForm.message}
+                      onChange={e => setContactForm({ ...contactForm, message: e.target.value })}
+                      placeholder="How can we help?"
+                      className="bg-secondary"
+                    />
+                  </div>
+                  <Button type="submit" variant="hero" className="w-full" disabled={isSubmittingContact}>
+                    {isSubmittingContact ? (
+                      <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      "Send Message"
+                    )}
+                  </Button>
+                </form>
               </div>
             </div>
           </div>
@@ -171,6 +391,7 @@ const Index = () => {
       {bookingLot && (
         <BookingModal
           lot={bookingLot}
+          isLoading={isBooking}
           onClose={() => setBookingLot(null)}
           onConfirm={handleBookingConfirm}
         />

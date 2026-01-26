@@ -5,10 +5,12 @@ import { Input } from '@/components/ui/input';
 import { ParkingLot, ParkingSlot } from '@/types/parking';
 import { generateSlotsForLot } from '@/data/mockParkingData';
 import { useToast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 
 interface BookingModalProps {
   lot: ParkingLot;
   onClose: () => void;
+  isLoading?: boolean;
   onConfirm: (booking: {
     slotId: string;
     vehicleNumber: string;
@@ -17,7 +19,7 @@ interface BookingModalProps {
   }) => void;
 }
 
-const BookingModal = ({ lot, onClose, onConfirm }: BookingModalProps) => {
+const BookingModal = ({ lot, onClose, onConfirm, isLoading = false }: BookingModalProps) => {
   const { toast } = useToast();
   const [step, setStep] = useState<'slots' | 'details' | 'confirm'>('slots');
   const [selectedSlot, setSelectedSlot] = useState<ParkingSlot | null>(null);
@@ -128,21 +130,26 @@ const BookingModal = ({ lot, onClose, onConfirm }: BookingModalProps) => {
                       .map(slot => {
                         const isAvailable = slot.status === 'available';
                         const isSelected = selectedSlot?.id === slot.id;
-                        
+
                         return (
                           <button
                             key={slot.id}
-                            onClick={() => isAvailable && setSelectedSlot(slot)}
+                            onClick={() => {
+                              if (isAvailable) {
+                                setSelectedSlot(slot);
+                                sonnerToast.success(`Selected Slot ${slot.slotNumber}`);
+                              }
+                            }}
                             disabled={!isAvailable}
                             className={`
-                              aspect-[3/2] rounded-lg flex flex-col items-center justify-center text-xs font-medium transition-all
-                              ${isAvailable 
-                                ? isSelected 
-                                  ? 'bg-primary text-primary-foreground ring-2 ring-foreground scale-105' 
+                              aspect-[3/2] rounded-lg flex flex-col items-center justify-center text-xs font-medium transition-all active:scale-95
+                              ${isAvailable
+                                ? isSelected
+                                  ? 'bg-primary text-primary-foreground ring-2 ring-foreground scale-105 shadow-lg shadow-primary/20'
                                   : 'bg-available/20 text-available hover:bg-available/30 hover:scale-105'
                                 : slot.status === 'reserved'
-                                  ? 'bg-reserved/20 text-reserved cursor-not-allowed'
-                                  : 'bg-occupied/20 text-occupied cursor-not-allowed'
+                                  ? 'bg-reserved/20 text-reserved cursor-not-allowed opacity-50'
+                                  : 'bg-occupied/20 text-occupied cursor-not-allowed opacity-50'
                               }
                             `}
                           >
@@ -312,9 +319,13 @@ const BookingModal = ({ lot, onClose, onConfirm }: BookingModalProps) => {
               </Button>
             )}
             {step === 'confirm' && (
-              <Button variant="hero" onClick={handleBook}>
-                <MessageCircle className="w-4 h-4" />
-                Confirm & Get WhatsApp Alert
+              <Button variant="hero" onClick={handleBook} disabled={isLoading}>
+                {isLoading ? (
+                  <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <MessageCircle className="w-4 h-4" />
+                )}
+                {isLoading ? 'Booking...' : 'Confirm & Get WhatsApp Alert'}
               </Button>
             )}
           </div>

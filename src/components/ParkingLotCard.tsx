@@ -1,6 +1,7 @@
 import { MapPin, Star, Camera, Clock, Car } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ParkingLot } from '@/types/parking';
+import { toast } from 'sonner';
 
 interface ParkingLotCardProps {
   lot: ParkingLot;
@@ -19,12 +20,16 @@ const ParkingLotCard = ({ lot, isSelected, onSelect, onBook }: ParkingLotCardPro
 
   return (
     <div
-      onClick={onSelect}
-      className={`p-4 rounded-xl border cursor-pointer transition-all duration-300 ${
-        isSelected
+      onClick={() => {
+        onSelect();
+        if (lot.availableSlots === 0) {
+          toast.error(`${lot.name} is currently full`);
+        }
+      }}
+      className={`p-4 rounded-xl border cursor-pointer transition-all duration-300 active:scale-[0.98] ${isSelected
           ? 'bg-secondary border-primary shadow-lg shadow-primary/10'
           : 'bg-card border-border hover:border-primary/50 hover:bg-secondary/50'
-      }`}
+        }`}
     >
       <div className="flex justify-between items-start mb-3">
         <div>
@@ -48,7 +53,7 @@ const ParkingLotCard = ({ lot, isSelected, onSelect, onBook }: ParkingLotCardPro
           </span>
           <span className="text-sm text-muted-foreground">/ {lot.totalSlots}</span>
         </div>
-        
+
         {lot.hasCamera && (
           <div className="flex items-center gap-1 text-primary">
             <Camera className="w-4 h-4" />
@@ -67,9 +72,8 @@ const ParkingLotCard = ({ lot, isSelected, onSelect, onBook }: ParkingLotCardPro
       {/* Availability Bar */}
       <div className="w-full h-2 bg-secondary rounded-full overflow-hidden mb-4">
         <div
-          className={`h-full transition-all duration-500 ${
-            availabilityPercent > 30 ? 'bg-available' : availabilityPercent > 0 ? 'bg-reserved' : 'bg-occupied'
-          }`}
+          className={`h-full transition-all duration-500 ${availabilityPercent > 30 ? 'bg-available' : availabilityPercent > 0 ? 'bg-reserved' : 'bg-occupied'
+            }`}
           style={{ width: `${availabilityPercent}%` }}
         />
       </div>

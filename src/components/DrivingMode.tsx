@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Navigation, Car, Clock, MapPin, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ParkingLot } from '@/types/parking';
+import { toast } from 'sonner';
 
 interface DrivingModeProps {
   parkingLots: ParkingLot[];
@@ -10,10 +11,25 @@ interface DrivingModeProps {
 
 const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
   const [isActive, setIsActive] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [currentSpeed] = useState(45);
   const [nearbyLots, setNearbyLots] = useState<ParkingLot[]>([]);
   const [currentLocation, setCurrentLocation] = useState({ lat: 40.7128, lng: -74.006 });
+
+  const handleStartDriving = () => {
+    setIsStarting(true);
+    setTimeout(() => {
+      setIsActive(true);
+      setIsStarting(false);
+      toast.success("Driving Mode Activated");
+    }, 800);
+  };
+
+  const handleEndDrive = () => {
+    setIsActive(false);
+    toast.info("Driving Mode Deactivated");
+  };
 
   useEffect(() => {
     if (isActive) {
@@ -24,7 +40,7 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
           .sort((a, b) => (a.distance || 0) - (b.distance || 0))
           .slice(0, 3);
         setNearbyLots(sorted);
-        
+
         // Simulate movement
         setCurrentLocation(prev => ({
           lat: prev.lat + (Math.random() - 0.5) * 0.001,
@@ -48,12 +64,16 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
               Driving Mode
             </h2>
             <p className="text-muted-foreground mb-8">
-              Enable driving mode to automatically track nearby parking lots as you drive. 
+              Enable driving mode to automatically track nearby parking lots as you drive.
               Get real-time updates and voice alerts for available parking spots.
             </p>
-            <Button variant="hero" size="xl" onClick={() => setIsActive(true)}>
-              <Car className="w-5 h-5" />
-              Start Driving Mode
+            <Button variant="hero" size="xl" onClick={handleStartDriving} disabled={isStarting}>
+              {isStarting ? (
+                <div className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Car className="w-5 h-5" />
+              )}
+              {isStarting ? 'Activating...' : 'Start Driving Mode'}
             </Button>
           </div>
         </div>
@@ -80,11 +100,14 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
               <Button
                 variant={voiceEnabled ? 'hero' : 'outline'}
                 size="icon"
-                onClick={() => setVoiceEnabled(!voiceEnabled)}
+                onClick={() => {
+                  setVoiceEnabled(!voiceEnabled);
+                  toast.info(voiceEnabled ? "Voice Alerts Muted" : "Voice Alerts Enabled");
+                }}
               >
                 {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
               </Button>
-              <Button variant="destructive" onClick={() => setIsActive(false)}>
+              <Button variant="destructive" onClick={handleEndDrive}>
                 End Drive
               </Button>
             </div>
@@ -116,22 +139,20 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
         {/* Nearby Lots List */}
         <div className="space-y-4">
           <h4 className="font-display text-lg font-semibold text-foreground">Nearby Parking</h4>
-          
+
           {nearbyLots.map((lot, index) => (
             <div
               key={lot.id}
-              className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                index === 0 
-                  ? 'bg-primary/10 border-primary' 
+              className={`p-4 rounded-xl border transition-all cursor-pointer ${index === 0
+                  ? 'bg-primary/10 border-primary'
                   : 'bg-card border-border hover:border-primary/50'
-              }`}
+                }`}
               onClick={() => onSelectLot(lot)}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-display font-bold ${
-                    index === 0 ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'
-                  }`}>
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-display font-bold ${index === 0 ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'
+                    }`}>
                     {index + 1}
                   </div>
                   <div>
@@ -145,9 +166,8 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className={`text-lg font-bold ${
-                    lot.availableSlots > 10 ? 'text-available' : lot.availableSlots > 0 ? 'text-reserved' : 'text-occupied'
-                  }`}>
+                  <p className={`text-lg font-bold ${lot.availableSlots > 10 ? 'text-available' : lot.availableSlots > 0 ? 'text-reserved' : 'text-occupied'
+                    }`}>
                     {lot.availableSlots} spots
                   </p>
                   <p className="text-sm text-muted-foreground">${lot.pricePerHour}/hr</p>

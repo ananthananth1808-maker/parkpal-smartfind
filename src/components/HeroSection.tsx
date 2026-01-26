@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Search, Navigation, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,9 +11,13 @@ interface HeroSectionProps {
 }
 
 const HeroSection = ({ onSearch, searchQuery, setSearchQuery }: HeroSectionProps) => {
+  const [isSearching, setIsSearching] = useState(false);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSearching(true);
     onSearch(searchQuery);
+    setTimeout(() => setIsSearching(false), 500); // Small delay for UX feedback
   };
 
   return (
@@ -41,7 +46,7 @@ const HeroSection = ({ onSearch, searchQuery, setSearchQuery }: HeroSectionProps
           </h1>
 
           <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
-            Smart parking made simple. Find available spots, book instantly, 
+            Smart parking made simple. Find available spots, book instantly,
             and get WhatsApp alerts. Live camera feeds show you exactly where to park.
           </p>
 
@@ -58,9 +63,13 @@ const HeroSection = ({ onSearch, searchQuery, setSearchQuery }: HeroSectionProps
                   className="pl-12 h-14 bg-secondary border-0 text-foreground placeholder:text-muted-foreground rounded-xl"
                 />
               </div>
-              <Button type="submit" variant="hero" size="xl" className="sm:w-auto">
-                <Navigation className="w-5 h-5" />
-                Find Parking
+              <Button type="submit" variant="hero" size="xl" className="sm:w-auto" disabled={isSearching}>
+                {isSearching ? (
+                  <div className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Navigation className="w-5 h-5" />
+                )}
+                {isSearching ? 'Searching...' : 'Find Parking'}
               </Button>
             </div>
           </form>
