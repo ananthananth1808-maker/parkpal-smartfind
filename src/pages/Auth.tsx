@@ -27,8 +27,9 @@ const Auth = () => {
             if (error) throw error;
             toast.success('Signed in successfully!');
             navigate('/');
-        } catch (error: any) {
-            toast.error(error.message || 'Failed to sign in');
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Failed to sign in';
+            toast.error(message);
         } finally {
             setIsLoading(false);
         }
@@ -49,8 +50,9 @@ const Auth = () => {
             });
             if (error) throw error;
             toast.success('Check your email for the confirmation link!');
-        } catch (error: any) {
-            toast.error(error.message || 'Failed to sign up');
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Failed to sign up';
+            toast.error(message);
         } finally {
             setIsLoading(false);
         }

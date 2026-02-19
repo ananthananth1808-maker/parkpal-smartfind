@@ -16,6 +16,7 @@ interface BookingModalProps {
     vehicleNumber: string;
     duration: number;
     whatsappNumber: string;
+    customerName: string;
   }) => void;
 }
 
@@ -26,13 +27,14 @@ const BookingModal = ({ lot, onClose, onConfirm, isLoading = false }: BookingMod
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [duration, setDuration] = useState(2);
   const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [customerName, setCustomerName] = useState('');
   const [showCamera, setShowCamera] = useState(false);
 
   const slots = generateSlotsForLot(lot.id, Math.min(lot.totalSlots, 30));
   const floors = [...new Set(slots.map(s => s.floor))];
 
   const handleBook = () => {
-    if (!selectedSlot || !vehicleNumber || !whatsappNumber) {
+    if (!selectedSlot || !vehicleNumber || !whatsappNumber || !customerName) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields",
@@ -45,7 +47,8 @@ const BookingModal = ({ lot, onClose, onConfirm, isLoading = false }: BookingMod
       slotId: selectedSlot.id,
       vehicleNumber,
       duration,
-      whatsappNumber
+      whatsappNumber,
+      customerName
     });
 
     toast({
@@ -195,6 +198,18 @@ const BookingModal = ({ lot, onClose, onConfirm, isLoading = false }: BookingMod
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
+                  Full Name
+                </label>
+                <Input
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Your Full Name"
+                  className="bg-secondary border-border"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
                   <Car className="w-4 h-4 inline mr-2" />
                   Vehicle Number
                 </label>
@@ -256,6 +271,10 @@ const BookingModal = ({ lot, onClose, onConfirm, isLoading = false }: BookingMod
 
               <div className="p-6 rounded-xl bg-secondary text-left space-y-4">
                 <div className="flex justify-between">
+                  <span className="text-muted-foreground">Customer Name</span>
+                  <span className="font-semibold text-foreground">{customerName}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">Parking Slot</span>
                   <span className="font-semibold text-foreground">{selectedSlot.slotNumber}</span>
                 </div>
@@ -312,7 +331,7 @@ const BookingModal = ({ lot, onClose, onConfirm, isLoading = false }: BookingMod
             {step === 'details' && (
               <Button
                 variant="hero"
-                disabled={!vehicleNumber || !whatsappNumber}
+                disabled={!vehicleNumber || !whatsappNumber || !customerName}
                 onClick={() => setStep('confirm')}
               >
                 Review Booking

@@ -1,18 +1,18 @@
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { Mail, Phone, MapPin, Search, Navigation, Zap, AlertCircle } from 'lucide-react';
+import BookingModal from '@/components/BookingModal';
+import DrivingMode from '@/components/DrivingMode';
+import Header from '@/components/Header';
+import HeroSection from '@/components/HeroSection';
+import ParkingLotCard from '@/components/ParkingLotCard';
+import ParkingMap from '@/components/ParkingMap';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import Header from '@/components/Header';
-import HeroSection from '@/components/HeroSection';
-import ParkingMap from '@/components/ParkingMap';
-import ParkingLotCard from '@/components/ParkingLotCard';
-import BookingModal from '@/components/BookingModal';
-import DrivingMode from '@/components/DrivingMode';
-import { ParkingLot } from '@/types/parking';
 import { mockParkingLots } from '@/data/mockParkingData';
+import { supabase } from '@/integrations/supabase/client';
+import { ParkingLot } from '@/types/parking';
+import { useQuery } from '@tanstack/react-query';
+import { AlertCircle, Mail, Phone, Zap } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 const Index = () => {
@@ -41,11 +41,12 @@ const Index = () => {
           error.message.includes('relation')
         ) {
           console.warn('Parking lots table not found or Supabase not ready, falling back to mock data');
-          toast.warning('Database tables not set up yet. Run full_setup.sql in Supabase SQL Editor.');
+          toast.warning(`Database tables not set up yet (Code: ${error.code}). Run full_database_setup.sql in Supabase SQL Editor.`);
           return mockParkingLots;
         }
 
         console.error('Supabase fetch error:', error);
+        console.dir(error); // Detailed view of the error object
         toast.error(`Fetch failed: ${error.message} (Code: ${error.code}). Using mock data.`);
         return mockParkingLots; // Final fallback for any other error to keep app working
       }
@@ -114,6 +115,7 @@ const Index = () => {
     vehicleNumber: string;
     duration: number;
     whatsappNumber: string;
+    customerName: string;
   }) => {
     setIsBooking(true);
     try {
@@ -123,12 +125,13 @@ const Index = () => {
       const { error: bookingError } = await supabase
         .from('bookings')
         .insert({
-          user_id: session?.user?.id || '00000000-0000-0000-0000-000000000000', // Dummy if no session
+          user_id: session?.user?.id || null, // allow null for anonymous
           parking_lot_id: bookingLot?.id || '',
           parking_lot_name: bookingLot?.name || '',
           slot_id: booking.slotId,
           vehicle_number: booking.vehicleNumber,
           duration_hours: booking.duration,
+          customer_name: booking.customerName,
           total_price: (bookingLot?.pricePerHour || 0) * booking.duration,
           status: 'active'
         });
@@ -146,22 +149,27 @@ const Index = () => {
       console.log('Booking confirmed:', booking);
 
       const message = encodeURIComponent(
-        `🅿️ ParkSmart Booking Confirmed!\n\n` +
-        `📍 ${bookingLot?.name}\n` +
+        `*New Booking Alert!* 🚗\n\n` +
+        `*User:* ${booking.customerName}\n` +
+        `*Parking Lot:* ${bookingLot?.name}\n` +
         `🚗 Vehicle: ${booking.vehicleNumber}\n` +
         `⏰ Duration: ${booking.duration} hours\n` +
         `💰 Total: $${(bookingLot?.pricePerHour || 0) * booking.duration}\n\n` +
         `See you soon!`
       );
 
-      // Open WhatsApp with pre-filled message
-      window.open(`https://wa.me/${booking.whatsappNumber.replace(/\D/g, '')}?text=${message}`, '_blank');
-
       setBookingLot(null);
-      toast.success("Booking confirmed! WhatsApp alert sent.");
-    } catch (err: any) {
+      toast.success("Booking confirmed! Sending WhatsApp alert to support.");
+
+      const adminNumber = import.meta.env.VITE_ADMIN_WHATSAPP_NUMBER || '916385557932';
+
+      // Open WhatsApp with admin number
+      window.open(`https://wa.me/${adminNumber.replace(/\D/g, '')}?text=${message}`, '_blank');
+
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to complete booking';
       console.error('Error booking:', err);
-      toast.error(err.message || 'Failed to complete booking');
+      toast.error(message);
     } finally {
       setIsBooking(false);
     }
@@ -270,7 +278,7 @@ const Index = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {userBookings.map((booking: any) => (
+                  {userBookings.map((booking) => (
                     <div key={booking.id} className="p-6 rounded-xl bg-card border border-border flex flex-col md:flex-row justify-between items-center gap-4 hover:border-primary/50 transition-colors">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -314,8 +322,7 @@ const Index = () => {
                       <Phone className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Call Us</p>
-                      <p className="font-medium text-foreground">+91 79042 95652</p>
+                      <p className="font-medium text-foreground">6385557932</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
@@ -323,8 +330,7 @@ const Index = () => {
                       <Mail className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Email Support</p>
-                      <p className="font-medium text-foreground">ananthananth1808@gmail.com</p>
+                      <p className="font-medium text-foreground">sivabalas557@gmail.com</p>
                     </div>
                   </div>
                 </div>
