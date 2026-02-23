@@ -151,10 +151,12 @@ const Index = () => {
       const message = encodeURIComponent(
         `*New Booking Alert!* 🚗\n\n` +
         `*User:* ${booking.customerName}\n` +
+        `*WhatsApp:* ${booking.whatsappNumber}\n` +
         `*Parking Lot:* ${bookingLot?.name}\n` +
         `🚗 Vehicle: ${booking.vehicleNumber}\n` +
         `⏰ Duration: ${booking.duration} hours\n` +
         `💰 Total: $${(bookingLot?.pricePerHour || 0) * booking.duration}\n\n` +
+        `*Reply to customer:* https://wa.me/${booking.whatsappNumber.replace(/\D/g, '')}\n\n` +
         `See you soon!`
       );
 
