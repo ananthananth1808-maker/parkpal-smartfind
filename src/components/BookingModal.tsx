@@ -63,7 +63,7 @@ const BookingModal = ({ lot, onClose, onConfirm, isLoading = false }: BookingMod
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl bg-card border border-border shadow-2xl animate-fade-in">
+      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-auto rounded-2xl bg-card border border-border shadow-2xl animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">
           <div>
@@ -302,7 +302,7 @@ const BookingModal = ({ lot, onClose, onConfirm, isLoading = false }: BookingMod
                 <div className="pt-4 border-t border-border flex justify-between">
                   <span className="text-lg font-medium text-foreground">Total</span>
                   <span className="text-2xl font-display font-bold text-primary">
-                    ${lot.pricePerHour * duration}
+                    ₹{(lot.pricePerHour * duration).toLocaleString('en-IN')}
                   </span>
                 </div>
               </div>
@@ -315,7 +315,7 @@ const BookingModal = ({ lot, onClose, onConfirm, isLoading = false }: BookingMod
           <div>
             {selectedSlot && step !== 'slots' && (
               <p className="text-sm text-muted-foreground">
-                Total: <span className="text-lg font-bold text-primary">${lot.pricePerHour * duration}</span>
+                Total: <span className="text-lg font-bold text-primary">₹{(lot.pricePerHour * duration).toLocaleString('en-IN')}</span>
               </p>
             )}
           </div>

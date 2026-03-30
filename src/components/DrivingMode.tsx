@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Navigation, Car, Clock, MapPin, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ParkingLot } from '@/types/parking';
@@ -13,9 +13,13 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
   const [isActive, setIsActive] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [currentSpeed] = useState(45);
+  const [currentSpeed, setCurrentSpeed] = useState(0);
   const [nearbyLots, setNearbyLots] = useState<ParkingLot[]>([]);
-  const [currentLocation, setCurrentLocation] = useState({ lat: 40.7128, lng: -74.006 });
+  const [currentLocation, setCurrentLocation] = useState({ lat: 12.8396, lng: 80.2201 });
+  const [eta, setEta] = useState(0);
+  const prevLocationRef = useRef(null);
+  const prevTimestampRef = useRef(null);
+  const watchIdRef = useRef(null);
 
   const handleStartDriving = () => {
     setIsStarting(true);
@@ -31,24 +35,71 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
     toast.info("Driving Mode Deactivated");
   };
 
+  // Haversine formula for distance in km
+  function getDistanceKm(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
   useEffect(() => {
     if (isActive) {
-      // Simulate location updates and finding nearby parking
-      const interval = setInterval(() => {
-        // Sort by distance and take closest 3
-        const sorted = [...parkingLots]
-          .sort((a, b) => (a.distance || 0) - (b.distance || 0))
-          .slice(0, 3);
-        setNearbyLots(sorted);
+      // Start geolocation tracking
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude, speed } = pos.coords;
+          setCurrentLocation({ lat: latitude, lng: longitude });
 
-        // Simulate movement
-        setCurrentLocation(prev => ({
-          lat: prev.lat + (Math.random() - 0.5) * 0.001,
-          lng: prev.lng + (Math.random() - 0.5) * 0.001
-        }));
-      }, 3000);
+          // Speed: use coords.speed if available, else calculate manually
+          let calcSpeed = 0;
+          if (speed != null && !isNaN(speed)) {
+            calcSpeed = speed * 3.6; // m/s to km/h
+          } else if (prevLocationRef.current && prevTimestampRef.current) {
+            const prev = prevLocationRef.current;
+            const prevTime = prevTimestampRef.current;
+            const dist = getDistanceKm(prev.lat, prev.lng, latitude, longitude); // in km
+            const timeElapsed = (pos.timestamp - prevTime) / 3600000; // ms to hours
+            if (timeElapsed > 0) {
+              calcSpeed = dist / timeElapsed;
+            }
+          }
+          setCurrentSpeed(Math.round(calcSpeed));
+          prevLocationRef.current = { lat: latitude, lng: longitude };
+          prevTimestampRef.current = pos.timestamp;
 
-      return () => clearInterval(interval);
+          // Find nearby lots (within 2km, sorted by distance)
+          const lotsWithDistance = parkingLots.map(lot => ({
+            ...lot,
+            distance: getDistanceKm(latitude, longitude, lot.latitude, lot.longitude)
+          }));
+          const sorted = lotsWithDistance
+            .filter(lot => lot.distance <= 2)
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, 3);
+          setNearbyLots(sorted);
+
+          // ETA to nearest
+          if (sorted.length > 0 && calcSpeed > 0) {
+            setEta(Math.ceil((sorted[0].distance / calcSpeed) * 60)); // min
+          } else {
+            setEta(0);
+          }
+        },
+        (err) => {
+          toast.error('Location error: ' + err.message);
+        },
+        { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+      );
+      return () => {
+        if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
+      };
     }
   }, [isActive, parkingLots]);
 
@@ -131,7 +182,7 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
             </div>
             <div className="p-4 rounded-xl bg-secondary">
               <p className="text-xs text-muted-foreground mb-1">ETA to Nearest</p>
-              <p className="text-2xl font-display font-bold text-foreground">2 <span className="text-sm font-normal">min</span></p>
+              <p className="text-2xl font-display font-bold text-foreground">{eta > 0 ? eta : '--'} <span className="text-sm font-normal">min</span></p>
             </div>
           </div>
         </div>
@@ -159,9 +210,9 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
                     <h5 className="font-semibold text-foreground">{lot.name}</h5>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <MapPin className="w-3 h-3" />
-                      <span>{lot.distance} km away</span>
+                      <span>{lot.distance ? lot.distance.toFixed(2) : '--'} km away</span>
                       <Clock className="w-3 h-3 ml-2" />
-                      <span>~{Math.ceil((lot.distance || 0.5) * 2)} min</span>
+                      <span>~{eta > 0 && index === 0 ? eta : Math.ceil((lot.distance || 0.5) * 2)} min</span>
                     </div>
                   </div>
                 </div>
@@ -170,7 +221,7 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
                     }`}>
                     {lot.availableSlots} spots
                   </p>
-                  <p className="text-sm text-muted-foreground">${lot.pricePerHour}/hr</p>
+                  <p className="text-sm text-muted-foreground">₹{lot.pricePerHour.toLocaleString('en-IN')}/hr</p>
                 </div>
               </div>
 

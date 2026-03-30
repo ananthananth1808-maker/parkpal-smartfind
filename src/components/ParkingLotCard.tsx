@@ -80,7 +80,7 @@ const ParkingLotCard = ({ lot, isSelected, onSelect, onBook }: ParkingLotCardPro
 
       <div className="flex items-center justify-between">
         <div>
-          <span className="text-2xl font-display font-bold text-primary">${lot.pricePerHour}</span>
+          <span className="text-2xl font-display font-bold text-primary">₹{lot.pricePerHour.toLocaleString('en-IN')}</span>
           <span className="text-sm text-muted-foreground">/hour</span>
         </div>
         <Button
