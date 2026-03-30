@@ -5,10 +5,28 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+// Debug: Log environment variables
+console.log('[Supabase Client] Initializing with URL:', SUPABASE_URL);
+console.log('[Supabase Client] Has publishable key:', !!SUPABASE_PUBLISHABLE_KEY);
+
+if (!SUPABASE_URL) {
+  console.error('[Supabase Client] VITE_SUPABASE_URL is not defined! Check your .env file.');
+  console.error('[Supabase Client] Add VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co to .env');
+}
+if (!SUPABASE_PUBLISHABLE_KEY) {
+  console.error('[Supabase Client] VITE_SUPABASE_PUBLISHABLE_KEY is not defined! Check your .env file.');
+  console.error('[Supabase Client] Add VITE_SUPABASE_PUBLISHABLE_KEY from Supabase dashboard');
+}
+
+// Validate Supabase project domain exists
+if (SUPABASE_URL && !SUPABASE_URL.includes('supabase.co')) {
+  console.warn('[Supabase Client] URL does not appear to be a valid Supabase domain');
+}
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+export const supabase = createClient<Database>(SUPABASE_URL || '', SUPABASE_PUBLISHABLE_KEY || '', {
   auth: {
     storage: localStorage,
     persistSession: true,

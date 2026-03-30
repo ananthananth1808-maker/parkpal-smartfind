@@ -140,7 +140,16 @@ const BookingModal = ({ lot, onClose, onConfirm, isLoading = false }: BookingMod
                             onClick={() => {
                               if (isAvailable) {
                                 setSelectedSlot(slot);
-                                sonnerToast.success(`Selected Slot ${slot.slotNumber}`);
+                                sonnerToast.success(
+                                  `Selected Slot ${slot.slotNumber}`,
+                                  {
+                                    duration: 5000,
+                                    action: {
+                                      label: 'Close',
+                                      onClick: () => sonnerToast.dismiss(),
+                                    },
+                                  }
+                                );
                               }
                             }}
                             disabled={!isAvailable}

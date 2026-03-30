@@ -18,42 +18,45 @@ export type Database = {
         Row: {
           booking_time: string
           created_at: string
+          customer_name: string | null
           duration_hours: number
           id: string
-          parking_lot_id: string
+          parking_lot_id: string | null
           parking_lot_name: string
           slot_id: string
           status: string
           total_price: number
-          user_id: string
+          user_id: string | null
           vehicle_id: string | null
           vehicle_number: string
         }
         Insert: {
           booking_time?: string
           created_at?: string
+          customer_name?: string | null
           duration_hours: number
           id?: string
-          parking_lot_id: string
+          parking_lot_id?: string | null
           parking_lot_name: string
           slot_id: string
           status?: string
           total_price: number
-          user_id: string
+          user_id?: string | null
           vehicle_id?: string | null
           vehicle_number: string
         }
         Update: {
           booking_time?: string
           created_at?: string
+          customer_name?: string | null
           duration_hours?: number
           id?: string
-          parking_lot_id?: string
+          parking_lot_id?: string | null
           parking_lot_name?: string
           slot_id?: string
           status?: string
           total_price?: number
-          user_id?: string
+          user_id?: string | null
           vehicle_id?: string | null
           vehicle_number?: string
         }

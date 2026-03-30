@@ -41,7 +41,7 @@ const Index = () => {
           error.message.includes('relation')
         ) {
           console.warn('Parking lots table not found or Supabase not ready, falling back to mock data');
-          toast.warning(`Database tables not set up yet (Code: ${error.code}). Run full_database_setup.sql in Supabase SQL Editor.`);
+          toast.warning(`Database tables not set up yet (Code: ${error.code}). Run supabase/migrations/20260129000000_consolidated_schema.sql in Supabase SQL Editor.`);
           return mockParkingLots;
         }
 
@@ -163,10 +163,13 @@ const Index = () => {
       setBookingLot(null);
       toast.success("Booking confirmed! Sending WhatsApp alert to support.");
 
-      const adminNumber = import.meta.env.VITE_ADMIN_WHATSAPP_NUMBER || '916385557932';
+      const adminNumbersRaw = import.meta.env.VITE_ADMIN_WHATSAPP_NUMBER || '916385557932';
+      const adminNumbers = adminNumbersRaw.split('||').map(num => num.trim()).filter(Boolean);
 
-      // Open WhatsApp with admin number
-      window.open(`https://wa.me/${adminNumber.replace(/\D/g, '')}?text=${message}`, '_blank');
+      // Open WhatsApp for each admin number
+      adminNumbers.forEach((adminNumber) => {
+        window.open(`https://wa.me/${adminNumber.replace(/\D/g, '')}?text=${message}`, '_blank');
+      });
 
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to complete booking';
@@ -324,7 +327,7 @@ const Index = () => {
                       <Phone className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">6385557932</p>
+                      <p className="font-medium text-foreground">7904295652,7708112357</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
@@ -332,7 +335,7 @@ const Index = () => {
                       <Mail className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">sivabalas557@gmail.com</p>
+                      <p className="font-medium text-foreground">ananthananth1808@gmail.com and abishek1245@gmail.com</p>
                     </div>
                   </div>
                 </div>
