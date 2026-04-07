@@ -327,7 +327,25 @@ const Index = () => {
                       <Phone className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">7904295652,7708112357</p>
+                      <p className="font-medium text-foreground">
+                        <a
+                          href="https://wa.me/917904295652"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-primary transition-colors"
+                        >
+                          7904295652
+                        </a>
+                        <span>, </span>
+                        <a
+                          href="https://wa.me/917708112357"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-primary transition-colors"
+                        >
+                          7708112357
+                        </a>
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
@@ -335,7 +353,25 @@ const Index = () => {
                       <Mail className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">ananthananth1808@gmail.com and abishek1245@gmail.com</p>
+                      <p className="font-medium text-foreground">
+                        <a
+                          href="https://outlook.live.com/mail/0/deeplink/compose?to=ananthananth1808@gmail.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-primary transition-colors"
+                        >
+                          ananthananth1808@gmail.com
+                        </a>
+                        <span> and </span>
+                        <a
+                          href="https://outlook.live.com/mail/0/deeplink/compose?to=abishek1245@gmail.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-primary transition-colors"
+                        >
+                          abishek1245@gmail.com
+                        </a>
+                      </p>
                     </div>
                   </div>
                 </div>
