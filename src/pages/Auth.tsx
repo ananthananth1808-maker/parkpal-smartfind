@@ -12,9 +12,11 @@ import { Car, Mail, Lock, User, ArrowLeft } from 'lucide-react';
 const Auth = () => {
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
+    const [isResending, setIsResending] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [displayName, setDisplayName] = useState('');
+    const emailRedirectTo = `${window.location.origin}/auth`;
 
     const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -29,7 +31,11 @@ const Auth = () => {
             navigate('/');
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Failed to sign in';
-            toast.error(message);
+            if (message.toLowerCase().includes('invalid login credentials')) {
+                toast.error('Invalid login credentials. If you just signed up, verify your email first or resend verification email.');
+            } else {
+                toast.error(message);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -39,22 +45,53 @@ const Auth = () => {
         e.preventDefault();
         setIsLoading(true);
         try {
-            const { error } = await supabase.auth.signUp({
+            const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
                 options: {
+                    emailRedirectTo,
                     data: {
                         display_name: displayName,
                     },
                 },
             });
             if (error) throw error;
-            toast.success('Check your email for the confirmation link!');
+            if (data.user && data.user.identities && data.user.identities.length === 0) {
+                toast.info('Account already exists. Try signing in, or use resend verification below.');
+            } else {
+                toast.success('Check your email for the confirmation link! If it is missing, check spam or click resend below.');
+            }
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Failed to sign up';
             toast.error(message);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleResendVerification = async () => {
+        if (!email) {
+            toast.error('Enter your email address first.');
+            return;
+        }
+
+        setIsResending(true);
+        try {
+            const { error } = await supabase.auth.resend({
+                type: 'signup',
+                email,
+                options: {
+                    emailRedirectTo,
+                },
+            });
+
+            if (error) throw error;
+            toast.success('Verification email sent again. Check spam/promotions if needed.');
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Failed to resend verification email';
+            toast.error(message);
+        } finally {
+            setIsResending(false);
         }
     };
 
@@ -135,12 +172,23 @@ const Auth = () => {
                                     </div>
                                 </CardContent>
                                 <CardFooter>
-                                    <Button type="submit" className="w-full" variant="hero" disabled={isLoading}>
-                                        {isLoading ? (
-                                            <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
-                                        ) : null}
-                                        {isLoading ? 'Signing in...' : 'Sign In'}
-                                    </Button>
+                                    <div className="w-full space-y-3">
+                                        <Button type="submit" className="w-full" variant="hero" disabled={isLoading}>
+                                            {isLoading ? (
+                                                <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
+                                            ) : null}
+                                            {isLoading ? 'Signing in...' : 'Sign In'}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="w-full"
+                                            onClick={handleResendVerification}
+                                            disabled={isResending}
+                                        >
+                                            {isResending ? 'Resending...' : 'Did not get verification email? Resend'}
+                                        </Button>
+                                    </div>
                                 </CardFooter>
                             </form>
                         </Card>
@@ -201,12 +249,26 @@ const Auth = () => {
                                     </div>
                                 </CardContent>
                                 <CardFooter>
-                                    <Button type="submit" className="w-full" variant="hero" disabled={isLoading}>
+                                    <div className="w-full space-y-3">
+                                        <Button type="submit" className="w-full" variant="hero" disabled={isLoading}>
+                                            {isLoading ? (
+                                                <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
+                                            ) : null}
+                                            {isLoading ? 'Creating account...' : 'Create Account'}
+                                        </Button>
                                         {isLoading ? (
-                                            <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
+                                            <p className="text-xs text-muted-foreground text-center">Sending verification email...</p>
                                         ) : null}
-                                        {isLoading ? 'Creating account...' : 'Create Account'}
-                                    </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="w-full"
+                                            onClick={handleResendVerification}
+                                            disabled={isResending}
+                                        >
+                                            {isResending ? 'Resending...' : 'Resend verification email'}
+                                        </Button>
+                                    </div>
                                 </CardFooter>
                             </form>
                         </Card>
