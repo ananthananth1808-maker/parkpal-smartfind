@@ -15,6 +15,28 @@ import { AlertCircle, Mail, Phone, Zap } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+const SEARCH_RADIUS_KM = 10;
+const SEARCH_MAP_ZOOM = 14;
+
+const toRadians = (value: number) => (value * Math.PI) / 180;
+
+const haversineDistanceKm = (
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number
+) => {
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(toLat - fromLat);
+  const dLng = toRadians(toLng - fromLng);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(fromLat)) * Math.cos(toRadians(toLat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return earthRadiusKm * c;
+};
+
 const Index = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLot, setSelectedLot] = useState<ParkingLot | null>(null);
@@ -23,6 +45,8 @@ const Index = () => {
   const [userLocation] = useState({ lat: 40.7128, lng: -74.006 });
   const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
+  const [searchCenter, setSearchCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [nearbyLots, setNearbyLots] = useState<ParkingLot[] | null>(null);
 
   const { data: parkingLots = [], isLoading, error } = useQuery({
     queryKey: ['parking_lots'],
@@ -67,9 +91,86 @@ const Index = () => {
     }
   });
 
-  const handleSearch = (query: string) => {
-    console.log('Searching for:', query);
-    setSearchQuery(query);
+  const handleSearch = async (query: string) => {
+    const normalizedQuery = query.trim();
+    setSearchQuery(normalizedQuery);
+
+    if (!normalizedQuery) {
+      setSearchCenter(null);
+      setNearbyLots(null);
+      toast.info('Type a location to search for nearby parking.');
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(normalizedQuery)}`,
+        {
+          headers: {
+            'Accept-Language': 'en',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Geocoding failed with status ${response.status}`);
+      }
+
+      const geocodeResults: Array<{ lat: string; lon: string; display_name?: string }> = await response.json();
+
+      if (!geocodeResults.length) {
+        setNearbyLots([]);
+        setSearchCenter(null);
+        toast.error(`Location not found for "${normalizedQuery}". Try a nearby landmark or city.`);
+        return;
+      }
+
+      const firstResult = geocodeResults[0];
+      const center = {
+        lat: Number(firstResult.lat),
+        lng: Number(firstResult.lon),
+      };
+
+      if (!Number.isFinite(center.lat) || !Number.isFinite(center.lng)) {
+        throw new Error('Invalid coordinates returned by geocoding service');
+      }
+
+      setSearchCenter(center);
+
+      const lotsInRadius = parkingLots.filter((lot) =>
+        haversineDistanceKm(center.lat, center.lng, lot.lat, lot.lng) <= SEARCH_RADIUS_KM
+      );
+
+      if (lotsInRadius.length === 0) {
+        setNearbyLots([]);
+        toast.warning(`No parking lots found within ${SEARCH_RADIUS_KM} km of ${normalizedQuery}.`);
+        return;
+      }
+
+      setNearbyLots(lotsInRadius);
+      setSelectedLot(lotsInRadius[0]);
+      document.getElementById('map')?.scrollIntoView({ behavior: 'smooth' });
+      toast.success(`Showing ${lotsInRadius.length} lots near ${normalizedQuery}.`);
+    } catch (searchError) {
+      console.error('Search/geocode failed:', searchError);
+      setSearchCenter(null);
+
+      const fallbackMatches = parkingLots.filter(
+        (lot) =>
+          lot.name.toLowerCase().includes(normalizedQuery.toLowerCase()) ||
+          lot.address.toLowerCase().includes(normalizedQuery.toLowerCase())
+      );
+
+      setNearbyLots(fallbackMatches);
+
+      if (fallbackMatches.length === 0) {
+        toast.error(`Could not geocode "${normalizedQuery}" and no local matches were found.`);
+      } else {
+        setSelectedLot(fallbackMatches[0]);
+        document.getElementById('map')?.scrollIntoView({ behavior: 'smooth' });
+        toast.warning('Geocoding unavailable. Showing local text matches instead.');
+      }
+    }
   };
 
   const filteredLots = useMemo(() =>
@@ -79,6 +180,8 @@ const Index = () => {
     ),
     [parkingLots, searchQuery]
   );
+
+  const displayedLots = nearbyLots ?? filteredLots;
 
   const { data: userBookings = [], isLoading: isLoadingBookings } = useQuery({
     queryKey: ['user_bookings'],
@@ -207,29 +310,31 @@ const Index = () => {
               {/* Map */}
               <div className="lg:col-span-2">
                 <ParkingMap
-                  parkingLots={filteredLots}
+                  parkingLots={displayedLots}
                   selectedLot={selectedLot}
                   onSelectLot={setSelectedLot}
                   userLocation={userLocation}
+                  targetCenter={searchCenter}
+                  targetZoom={SEARCH_MAP_ZOOM}
                 />
               </div>
 
               {/* Parking List */}
               <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                 <h3 className="font-display text-lg font-semibold text-foreground sticky top-0 bg-background py-2">
-                  {isLoading ? 'Searching...' : `${filteredLots.length} Parking Locations`}
+                  {isLoading ? 'Searching...' : `${displayedLots.length} Parking Locations`}
                 </h3>
 
                 {isLoading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <div key={i} className="h-32 rounded-xl bg-muted animate-pulse" />
                   ))
-                ) : filteredLots.length === 0 ? (
+                ) : displayedLots.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-muted-foreground">No parking lots found matching your search.</p>
                   </div>
                 ) : (
-                  filteredLots.map(lot => (
+                  displayedLots.map(lot => (
                     <ParkingLotCard
                       key={lot.id}
                       lot={lot}

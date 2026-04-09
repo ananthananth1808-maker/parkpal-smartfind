@@ -70,6 +70,28 @@ interface ParkingMapProps {
   onSelectLot?: (lot: ParkingLot) => void;
   userLocation?: { lat: number; lng: number };
   onParkingLotClick?: (lot: ParkingLot) => void;
+  targetCenter?: { lat: number; lng: number } | null;
+  targetZoom?: number;
+}
+
+function MapViewUpdater({
+  targetCenter,
+  targetZoom = 14,
+}: {
+  targetCenter?: { lat: number; lng: number } | null;
+  targetZoom?: number;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!targetCenter) return;
+    map.flyTo([targetCenter.lat, targetCenter.lng], targetZoom, {
+      animate: true,
+      duration: 1.2,
+    });
+  }, [map, targetCenter, targetZoom]);
+
+  return null;
 }
 
 function LocationMarker({ userPosition, setUserPosition, recenter, setRecenter }) {
@@ -108,7 +130,9 @@ function ParkingMap({
   selectedLot, 
   onSelectLot, 
   userLocation,
-  onParkingLotClick 
+  onParkingLotClick,
+  targetCenter,
+  targetZoom = 14,
 }: ParkingMapProps) {
   const [userPosition, setUserPosition] = useState(null);
   const [recenter, setRecenter] = useState(false);
@@ -148,6 +172,8 @@ function ParkingMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
+
+        <MapViewUpdater targetCenter={targetCenter} targetZoom={targetZoom} />
         
         {/* Parking lot markers */}
         {parkingLots.map((lot) => (

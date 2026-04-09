@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import heroImage from '@/assets/hero-parking.jpg';
 
 interface HeroSectionProps {
-  onSearch: (query: string) => void;
+  onSearch: (query: string) => Promise<void> | void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
 }
@@ -13,11 +13,14 @@ interface HeroSectionProps {
 const HeroSection = ({ onSearch, searchQuery, setSearchQuery }: HeroSectionProps) => {
   const [isSearching, setIsSearching] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSearching(true);
-    onSearch(searchQuery);
-    setTimeout(() => setIsSearching(false), 500); // Small delay for UX feedback
+    try {
+      await onSearch(searchQuery);
+    } finally {
+      setTimeout(() => setIsSearching(false), 500); // Small delay for UX feedback
+    }
   };
 
   return (
