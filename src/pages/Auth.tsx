@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,53 @@ const Auth = () => {
     const [displayName, setDisplayName] = useState('');
     const emailRedirectTo = `${window.location.origin}/auth`;
 
+    useEffect(() => {
+        const handleEmailConfirmationCallback = async () => {
+            const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+            const queryParams = new URLSearchParams(window.location.search);
+
+            const callbackError =
+                hashParams.get('error_description') ||
+                queryParams.get('error_description');
+
+            if (callbackError) {
+                toast.error(decodeURIComponent(callbackError));
+                return;
+            }
+
+            const code = queryParams.get('code');
+            const hasTokenInHash = !!hashParams.get('access_token');
+
+            if (code) {
+                const { error } = await supabase.auth.exchangeCodeForSession(code);
+                if (error) {
+                    toast.error(`Email verification failed: ${error.message}`);
+                    return;
+                }
+            }
+
+            if (code || hasTokenInHash) {
+                const { data: { user }, error } = await supabase.auth.getUser();
+
+                if (error) {
+                    toast.error('Email was confirmed, but we could not fetch your account. Please sign in manually.');
+                    return;
+                }
+
+                if (user?.email_confirmed_at) {
+                    toast.success('Email verified successfully. You are now signed in.');
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    navigate('/');
+                    return;
+                }
+
+                toast.warning('Verification link opened, but email is still unverified. Try the latest email link.');
+            }
+        };
+
+        void handleEmailConfirmationCallback();
+    }, [navigate]);
+
     const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
@@ -33,6 +80,8 @@ const Auth = () => {
             const message = error instanceof Error ? error.message : 'Failed to sign in';
             if (message.toLowerCase().includes('invalid login credentials')) {
                 toast.error('Invalid login credentials. If you just signed up, verify your email first or resend verification email.');
+            } else if (message.toLowerCase().includes('email not confirmed')) {
+                toast.error('Your email is not verified yet. Open the latest verification email or resend it below.');
             } else {
                 toast.error(message);
             }

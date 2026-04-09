@@ -1,14 +1,12 @@
 
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { Button } from '@/components/ui/button';
 import { ParkingLot } from '@/types/parking';
 import 'leaflet/dist/leaflet.css'; // Idhu dhaan romba mukkiyam!
 
-
-
-const HITS_POSITION = [12.8396, 80.2201];
+const DEFAULT_MAP_CENTER: [number, number] = [9.26259, 77.68075];
 
 // Custom icon for parking lots
 const createParkingIcon = (price?: number) => {
@@ -114,6 +112,13 @@ function ParkingMap({
 }: ParkingMapProps) {
   const [userPosition, setUserPosition] = useState(null);
   const [recenter, setRecenter] = useState(false);
+  const mapCenter: [number, number] = selectedLot
+    ? [selectedLot.lat, selectedLot.lng]
+    : parkingLots.length > 0
+      ? [parkingLots[0].lat, parkingLots[0].lng]
+      : userLocation
+        ? [userLocation.lat, userLocation.lng]
+        : DEFAULT_MAP_CENTER;
 
   // Use onSelectLot if provided, otherwise use onParkingLotClick
   const handleLotClick = (lot: ParkingLot) => {
@@ -135,7 +140,7 @@ function ParkingMap({
       }}
     >
       <MapContainer 
-        center={HITS_POSITION} 
+        center={mapCenter} 
         zoom={15} 
         style={{ height: '100%', width: '100%', borderRadius: 16, zIndex: 1, position: 'relative' }}
       >
@@ -154,6 +159,18 @@ function ParkingMap({
               click: () => handleLotClick(lot),
             }}
           >
+            <Tooltip direction="top" offset={[0, -20]} opacity={1}>
+              <div style={{ minWidth: 180, padding: '4px 6px' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px' }}>{lot.name}</div>
+                <div style={{ fontSize: '12px', marginBottom: '2px' }}>Slots: {lot.availableSlots}/{lot.totalSlots}</div>
+                <div style={{ fontSize: '12px', marginBottom: '4px' }}>Base price: ₹{lot.pricePerHour}/hr</div>
+                <div style={{ display: 'flex', gap: '6px', fontSize: '11px' }}>
+                  <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: '999px' }}>1h ₹{lot.pricePerHour}</span>
+                  <span style={{ background: '#dbeafe', color: '#1e40af', padding: '2px 6px', borderRadius: '999px' }}>3h ₹{lot.pricePerHour * 3}</span>
+                  <span style={{ background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: '999px' }}>6h ₹{lot.pricePerHour * 6}</span>
+                </div>
+              </div>
+            </Tooltip>
             <Popup>
               <div className="parking-popup" style={{ minWidth: 260, padding: '12px' }}>
                 <h3 style={{ margin: '0 0 4px 0', fontWeight: 'bold', fontSize: '15px', color: '#1f2937' }}>
@@ -230,20 +247,6 @@ function ParkingMap({
             </Popup>
           </Marker>
         ))}
-
-        {/* HITS location marker (original) */}
-        <Marker position={HITS_POSITION} icon={createParkingIcon()}>
-          <Popup>
-            <div className="parking-popup" style={{ minWidth: 200 }}>
-              <h3 style={{ margin: '0 0 8px 0', fontWeight: 'bold', fontSize: '14px' }}>
-                SmartSpot HITS
-              </h3>
-              <p style={{ margin: '4px 0', fontSize: '12px', color: '#666' }}>
-                Entry Gate Parking
-              </p>
-            </div>
-          </Popup>
-        </Marker>
 
         <LocationMarker userPosition={userPosition} setUserPosition={setUserPosition} recenter={recenter} setRecenter={setRecenter} />
       </MapContainer>
