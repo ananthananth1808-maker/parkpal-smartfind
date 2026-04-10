@@ -12,14 +12,45 @@ interface DrivingModeProps {
 const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
   const [isActive, setIsActive] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [nearbyLots, setNearbyLots] = useState<ParkingLot[]>([]);
   const [currentLocation, setCurrentLocation] = useState({ lat: 12.8396, lng: 80.2201 });
   const [eta, setEta] = useState(0);
-  const prevLocationRef = useRef(null);
-  const prevTimestampRef = useRef(null);
-  const watchIdRef = useRef(null);
+  const prevLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+  const prevTimestampRef = useRef<number | null>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const lastAnnouncedSignatureRef = useRef<string | null>(null);
+  const lastAnnouncedAvailabilityRef = useRef<number | null>(null);
+  const voiceUnlockedRef = useRef(false);
+
+  const speakParkingUpdate = (text: string) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis || !voiceEnabled) {
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-IN';
+    utterance.rate = 0.92;
+    utterance.pitch = 1.05;
+    utterance.volume = 1;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const getDistancePhrase = (distanceKm: number) => {
+    if (distanceKm <= 0.3) return 'very close by';
+    if (distanceKm <= 1) return 'nearby';
+    return 'a little farther away';
+  };
+
+  const buildParkingAnnouncement = (lot: ParkingLot, distanceKm: number, etaMinutes?: number) => {
+    const slotText = lot.availableSlots === 1 ? '1 available spot' : `${lot.availableSlots} available spots`;
+    const distancePhrase = getDistancePhrase(distanceKm);
+    const etaText = etaMinutes && etaMinutes > 0 ? ` Estimated arrival is about ${etaMinutes} minutes.` : '';
+
+    return `${lot.name} is ${distancePhrase}, ${distanceKm.toFixed(1)} kilometers away, with ${slotText}.${etaText}`;
+  };
 
   const handleStartDriving = () => {
     setIsStarting(true);
@@ -27,11 +58,36 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
       setIsActive(true);
       setIsStarting(false);
       toast.success("Driving Mode Activated");
+      voiceUnlockedRef.current = true;
+      if (voiceEnabled) {
+        speakParkingUpdate('Driving mode activated. Searching for nearby parking slots.');
+      }
     }, 800);
+  };
+
+  const handleVoiceToggle = () => {
+    const nextEnabled = !voiceEnabled;
+    setVoiceEnabled(nextEnabled);
+    toast.info(nextEnabled ? 'Voice Alerts Enabled' : 'Voice Alerts Muted');
+
+    if (nextEnabled) {
+      voiceUnlockedRef.current = true;
+      lastAnnouncedSignatureRef.current = null;
+      lastAnnouncedAvailabilityRef.current = null;
+      if (nearbyLots.length > 0) {
+        speakParkingUpdate(
+          `Voice alerts enabled. ${nearbyLots[0].name} is nearby with ${nearbyLots[0].availableSlots} available spots.`
+        );
+      } else {
+        speakParkingUpdate('Voice alerts enabled. Searching for nearby parking lots.');
+      }
+    }
   };
 
   const handleEndDrive = () => {
     setIsActive(false);
+    lastAnnouncedSignatureRef.current = null;
+    lastAnnouncedAvailabilityRef.current = null;
     toast.info("Driving Mode Deactivated");
   };
 
@@ -85,6 +141,26 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
             .slice(0, 3);
           setNearbyLots(sorted);
 
+          const nearestLot = sorted[0];
+          const nearestSignature = nearestLot
+            ? `${nearestLot.id}-${nearestLot.availableSlots}`
+            : null;
+          const availabilityImproved =
+            nearestLot &&
+            (lastAnnouncedAvailabilityRef.current == null || nearestLot.availableSlots > lastAnnouncedAvailabilityRef.current);
+          const shouldAnnounceLot =
+            voiceEnabled &&
+            voiceUnlockedRef.current &&
+            nearestLot &&
+            nearestSignature !== lastAnnouncedSignatureRef.current &&
+            availabilityImproved;
+
+          if (shouldAnnounceLot) {
+            lastAnnouncedSignatureRef.current = nearestSignature;
+            lastAnnouncedAvailabilityRef.current = nearestLot.availableSlots;
+            speakParkingUpdate(buildParkingAnnouncement(nearestLot, nearestLot.distance, eta));
+          }
+
           // ETA to nearest
           if (sorted.length > 0 && calcSpeed > 0) {
             setEta(Math.ceil((sorted[0].distance / calcSpeed) * 60)); // min
@@ -98,10 +174,18 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
         { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
       );
       return () => {
-        if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
+        if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
       };
     }
   }, [isActive, parkingLots]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   if (!isActive) {
     return (
@@ -118,7 +202,7 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
               Enable driving mode to automatically track nearby parking lots as you drive.
               Get real-time updates and voice alerts for available parking spots.
             </p>
-            <Button variant="hero" size="xl" onClick={handleStartDriving} disabled={isStarting}>
+              <Button variant="hero" size="xl" onClick={handleStartDriving} disabled={isStarting}>
               {isStarting ? (
                 <div className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
               ) : (
@@ -151,10 +235,7 @@ const DrivingMode = ({ parkingLots, onSelectLot }: DrivingModeProps) => {
               <Button
                 variant={voiceEnabled ? 'hero' : 'outline'}
                 size="icon"
-                onClick={() => {
-                  setVoiceEnabled(!voiceEnabled);
-                  toast.info(voiceEnabled ? "Voice Alerts Muted" : "Voice Alerts Enabled");
-                }}
+                onClick={handleVoiceToggle}
               >
                 {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
               </Button>
